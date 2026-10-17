@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>عداد التعافي وكسر الحواجز</title>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <!-- Supabase CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --primary: #10b981;
+      --danger: #ef4444;
+      --text: #f8fafc;
+      --subtext: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Tajawal', sans-serif; }
+    body { background-color: var(--bg); color: var(--text); min-height: 100vh; padding: 20px 10px; display: flex; justify-content: center; }
+    .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 20px; }
+    .card { background-color: var(--card-bg); border-radius: 16px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+    
+    .timer-display { text-align: center; margin: 15px 0; }
+    .timer-units { display: flex; justify-content: center; gap: 15px; }
+    .unit-box { background: #0f172a; padding: 10px 15px; border-radius: 10px; min-width: 65px; border: 1px solid #334155; }
+    .unit-val { font-size: 28px; font-weight: 800; color: var(--primary); display: block; }
+    .unit-lbl { font-size: 12px; color: var(--subtext); }
+
+    .milestones { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+    .milestone-item { display: flex; justify-content: space-between; align-items: center; background: #0f172a; padding: 10px 15px; border-radius: 8px; border-right: 4px solid #475569; }
+    .milestone-item.achieved { border-right-color: var(--primary); background: rgba(16, 185, 129, 0.1); }
+    .milestone-item.achieved .m-title { color: var(--primary); font-weight: bold; }
+
+    button { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; width: 100%; transition: 0.2s; }
+    button:hover { opacity: 0.9; }
+    button.danger-btn { background: var(--danger); margin-top: 10px; }
+    textarea, input { width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px; color: white; font-size: 14px; margin-bottom: 10px; }
+    
+    .history-list { max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+    .history-item { background: #0f172a; padding: 10px; border-radius: 8px; font-size: 13px; border-right: 3px solid var(--danger); }
+    .history-date { color: var(--subtext); font-size: 11px; }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- شاشة الدخول والتسجيل -->
+  <div id="auth-screen" class="card">
+    <h2 style="color: var(--primary); margin-bottom: 5px; text-align: center;">مرحباً بك 👋</h2>
+    <p style="color: var(--subtext); font-size: 13px; margin-bottom: 15px; text-align: center;">سجل حسابك لربط العداد بالسحاب</p>
+    <input type="email" id="email" placeholder="البريد الإلكتروني">
+    <input type="password" id="password" placeholder="كلمة المرور">
+    <button onclick="login()" style="margin-bottom:8px;">تسجيل الدخول</button>
+    <button onclick="register()" style="background:#334155;">إنشاء حساب جديد</button>
+  </div>
+
+  <!-- الشاشة الرئيسية للتطبيق -->
+  <div id="app-screen" class="hidden" style="display:flex; flex-direction: column; gap:20px;">
+    
+    <!-- كارت العداد -->
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 style="font-size:16px;">⏳ مدة الصمود والتعافي</h3>
+        <button onclick="logout()" style="width:auto; padding:5px 10px; background:#334155; font-size:12px;">خروج</button>
+      </div>
+
+      <div class="timer-display">
+        <div class="timer-units">
+          <div class="unit-box"><span id="days" class="unit-val">0</span><span class="unit-lbl">أيام</span></div>
+          <div class="unit-box"><span id="hours" class="unit-val">0</span><span class="unit-lbl">ساعات</span></div>
+          <div class="unit-box"><span id="minutes" class="unit-val">0</span><span class="unit-lbl">دقائق</span></div>
+          <div class="unit-box"><span id="seconds" class="unit-val">0</span><span class="unit-lbl">ثواني</span></div>
+        </div>
+      </div>
+
+      <button class="danger-btn" onclick="triggerRelapse()">⚠️ تسجيل انتكاسة والبدء من جديد</button>
+    </div>
+
+    <!-- كارت كسر الحواجز -->
+    <div class="card">
+      <h3 style="font-size:16px; margin-bottom:5px;">🏆 محطات كسر الحواجز</h3>
+      <div class="milestones" id="milestones-container"></div>
+    </div>
+
+    <!-- كارت القواعد والميثاق -->
+    <div class="card">
+      <h3 style="font-size:16px; margin-bottom:10px;">📜 ميثاق القواعد والالتزام</h3>
+      <textarea id="rules-text" rows="4" placeholder="اكتب هنا القواعد الواضحة التي تلزم نفسك بها..."></textarea>
+      <button onclick="saveRules()" style="background:#334155;">حفظ الميثاق</button>
+    </div>
+
+    <!-- كارت سجل الانتكاسات السابقة -->
+    <div class="card">
+      <h3 style="font-size:16px; margin-bottom:10px;">📊 سجل المحاولات السابقة</h3>
+      <div class="history-list" id="history-container">
+        <p style="color:var(--subtext); font-size:13px;">لا توجد انتكاسات مسجلة بحمد الله.</p>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  // بيانات الربط بمشروعك
+  const SUPABASE_URL = "https://bogngdzfmkbeblaerykj.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_50wKhQBHyQOMbD258Fdvog_E1jagkaH";
+
+  const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let currentUser = null;
+  let startDate = null;
+  let timerInterval = null;
+
+  const milestonesList = [
+    { days: 1, title: "حاجز 24 ساعة (أول نصر)" },
+    { days: 3, title: "حاجز 3 أيام (تجاوز الصدمة الأولى)" },
+    { days: 7, title: "حاجز الأسبوع الأول" },
+    { days: 14, title: "حاجز الأسبوعين" },
+    { days: 30, title: "حاجز الشهر (30 يوم)" },
+    { days: 90, title: "حاجز الـ 90 يوماً (إعادة ضبط المسارات)" },
+    { days: 180, title: "حاجز نصف سنة (180 يوم)" },
+    { days: 365, title: "حاجز السنة الكاملة 👑" }
+  ];
+
+  // التحقق من الجلسة تلقائياً
+  client.auth.getSession().then(({ data: { session } }) => {
+    if (session) handleAuth(session.user);
+  });
+
+  async function handleAuth(user) {
+    currentUser = user;
+    document.getElementById("auth-screen").classList.add("hidden");
+    document.getElementById("app-screen").classList.remove("hidden");
+    await loadUserData();
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(updateTimer, 1000);
+  }
+
+  async function login() {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    const { data, error } = await client.auth.signInWithPassword({ email, password });
+    if (error) alert("خطأ: " + error.message);
+    else handleAuth(data.user);
+  }
+
+  async function register() {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+    const { data, error } = await client.auth.signUp({ email, password });
+    if (error) alert("خطأ: " + error.message);
+    else {
+      alert("تم إنشاء الحساب بنجاح! يتم الآن تسجيل دخولك...");
+      handleAuth(data.user);
+    }
+  }
+
+  async function logout() {
+    await client.auth.signOut();
+    location.reload();
+  }
+
+  async function loadUserData() {
+    const { data, error } = await client.from('user_tracker').select('*').eq('id', currentUser.id).single();
+    if (data) {
+      startDate = new Date(data.start_date);
+      document.getElementById("rules-text").value = data.rules || "";
+      renderHistory(data.relapses || []);
+    } else {
+      startDate = new Date();
+      await client.from('user_tracker').insert([{ id: currentUser.id, start_date: startDate.toISOString(), rules: "", relapses: [] }]);
+    }
+    renderMilestones();
+  }
+
+  function updateTimer() {
+    if (!startDate) return;
+    const diff = new Date() - startDate;
+    const s = Math.floor((diff / 1000) % 60);
+    const m = Math.floor((diff / 1000 / 60) % 60);
+    const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
+    const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+    document.getElementById("days").innerText = d;
+    document.getElementById("hours").innerText = h;
+    document.getElementById("minutes").innerText = m;
+    document.getElementById("seconds").innerText = s;
+
+    renderMilestones(d);
+  }
+
+  function renderMilestones(currentDays = 0) {
+    const container = document.getElementById("milestones-container");
+    container.innerHTML = "";
+    milestonesList.forEach(m => {
+      const achieved = currentDays >= m.days;
+      container.innerHTML += `
+        <div class="milestone-item ${achieved ? 'achieved' : ''}">
+          <span class="m-title">${m.title}</span>
+          <span style="font-size:12px;">${achieved ? 'تم الكسر بنجاح ✔' : `باقي ${m.days - currentDays} يوم`}</span>
+        </div>
+      `;
+    });
+  }
+
+  async function saveRules() {
+    const rules = document.getElementById("rules-text").value;
+    await client.from('user_tracker').update({ rules }).eq('id', currentUser.id);
+    alert("تم حفظ الميثاق بنجاح!");
+  }
+
+  async function triggerRelapse() {
+    const confirm = window.confirm("هل أنت متأكد من تسجيل انتكاسة؟ لا بأس، المهم هو التعلم والبدء من جديد فوراً.");
+    if (!confirm) return;
+
+    const reason = prompt("ما هو السبب أو الدرس المستفاد؟") || "بدون ملاحظة";
+    const now = new Date();
+    const durationDays = ((now - startDate) / (1000 * 60 * 60 * 24)).toFixed(1);
+
+    const { data } = await client.from('user_tracker').select('relapses').eq('id', currentUser.id).single();
+    const currentRelapses = data ? (data.relapses || []) : [];
+
+    currentRelapses.push({
+      date: now.toLocaleDateString('ar-EG'),
+      durationDays: durationDays,
+      reason: reason
+    });
+
+    startDate = now;
+    await client.from('user_tracker').update({
+      start_date: now.toISOString(),
+      relapses: currentRelapses
+    }).eq('id', currentUser.id);
+
+    await loadUserData();
+    alert("تم تصفير العداد وبدأت محاولة جديدة أقوى!");
+  }
+
+  function renderHistory(relapses) {
+    const container = document.getElementById("history-container");
+    if (!relapses || relapses.length === 0) return;
+    container.innerHTML = "";
+    relapses.slice().reverse().forEach(r => {
+      container.innerHTML += `
+        <div class="history-item">
+          <div>صمدت لمدة: <b>${r.durationDays} يوم</b></div>
+          <div style="margin: 3px 0; color:#cbd5e1;">السبب/الدرس: ${r.reason}</div>
+          <div class="history-date">${r.date}</div>
+        </div>
+      `;
+    });
+  }
+</script>
+</body>
+</html>
